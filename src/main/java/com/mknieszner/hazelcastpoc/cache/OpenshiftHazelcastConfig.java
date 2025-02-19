@@ -10,8 +10,6 @@ import com.hazelcast.config.MapConfig;
 import com.hazelcast.config.MaxSizePolicy;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
-import com.hazelcast.spring.cache.HazelcastCacheManager;
-import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,7 +20,6 @@ import org.springframework.context.annotation.Profile;
 @Configuration
 @EnableCaching
 public class OpenshiftHazelcastConfig {
-
     @Bean
     public HazelcastInstance hazelcastInstance() {
         // ✅ Konfiguracja mapy cache
@@ -55,5 +52,4 @@ public class OpenshiftHazelcastConfig {
 
         return Hazelcast.newHazelcastInstance(config);
     }
-
 }

@@ -8,16 +8,13 @@ import com.hazelcast.config.ManagementCenterConfig;
 import com.hazelcast.config.MapConfig;
 import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
-import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
 @Profile("KUBERNETES")
 @Configuration
-@EnableCaching
 public class KubernetesHazelcastConfig {
-
     @Bean
     public HazelcastInstance hazelcastInstance(MapConfig productsCacheConfig) {
         Config config = new Config();

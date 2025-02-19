@@ -9,26 +9,22 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 
-@Profile("DOCKER")
+@Profile("DEV")
 @Configuration
-public class DokcerHazelcastConfig {
+public class DevHazelcastConfig {
     @Bean
     public HazelcastInstance hazelcastInstance(MapConfig productsCacheConfig) {
         Config config = new Config();
 
-        config.setClusterName("products-hazelcast-cluster")
-                .addMapConfig(productsCacheConfig);
+        config.setClusterName("local-hazelcast-cluster");
 
         config.setManagementCenterConfig(new ManagementCenterConfig()
-                .setConsoleEnabled(true)  // Włącz konsolę MC
-                .setDataAccessEnabled(true));  // Pozwól na dostęp do danych
+                .setConsoleEnabled(true)
+                .setDataAccessEnabled(true));
 
-        // ✅ Automatyczne wykrywanie pozostałych node
-        config.getNetworkConfig()
-                .getJoin()
-                .getAutoDetectionConfig()
-                .setEnabled(true);
+        config.getNetworkConfig().getJoin().getMulticastConfig().setEnabled(true);
 
         return Hazelcast.newHazelcastInstance(config);
     }
+
 }
