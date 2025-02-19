@@ -1,0 +1,218 @@
+# ==========================
+# ✅ Hazelcast RBAC (Role-Based Access Control)
+# 🔹 Ogranicza uprawnienia Hazelcasta tylko do jego własnych zasobów
+# 🔹 Pozwala mu wykrywać inne instancje w Kubernetes/OpenShift
+# 🔹 Zapewnia większe bezpieczeństwo niż globalne uprawnienia
+# ==========================
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hazelcast-role
+  namespace: mateusz-dev  # 🔍 Namespace dla Hazelcasta
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - services
+      - endpoints
+    verbs: ["get", "list", "watch"]
+    resourceNames:
+      - hazelcast-service  # 🎯 Ograniczenie do konkretnego Service
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hazelcast-role-binding
+  namespace: mateusz-dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hazelcast-role
+subjects:
+  - kind: ServiceAccount
+    name: default  # 🔍 ServiceAccount używana przez Hazelcast
+    namespace: mateusz-dev
+
+---
+# ==========================
+# Persistent Volume Claim dla PostgreSQL
+# ==========================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: mateusz-dev
+spec:
+  storageClassName: gp3  # StorageClass w OpenShift Sandbox
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# ==========================
+# ✅ PostgreSQL Service (Headless) - używane przez aplikację Spring Boot
+# ==========================
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: mateusz-dev
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: postgres
+  clusterIP: None  # 🔥 Headless service dla łatwego dostępu w OpenShift
+
+---
+# ==========================
+# ✅ StatefulSet dla PostgreSQL
+# ==========================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: mateusz-dev
+spec:
+  serviceName: "postgres"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: user
+            - name: POSTGRES_PASSWORD
+              value: password
+            - name: POSTGRES_DB
+              value: products_db
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: postgres-storage
+
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+
+---
+# ==========================
+# ✅ Hazelcast Service (Headless) - Discovery w OpenShift
+# ==========================
+apiVersion: v1
+kind: Service
+metadata:
+  name: hazelcast-service
+  namespace: mateusz-dev
+  labels:
+    app: hazelcast
+spec:
+  clusterIP: None  # 🔥 Headless Service wymagany dla Hazelcast OpenShift Discovery
+  selector:
+    app: hazelcast
+  ports:
+    - port: 5701
+      name: hazelcast
+
+---
+# ==========================
+# ✅ Deployment dla aplikacji Spring Boot (Spring Boot + Hazelcast)
+# ==========================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hazelcast-poc-deployment
+  namespace: mateusz-dev
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hazelcast
+  template:
+    metadata:
+      labels:
+        app: hazelcast
+    spec:
+      containers:
+        - name: hazelcast-poc-container
+          image: santandpoc/hazelcast-poc:1.3
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5701  # ✅ Port Hazelcast
+            - containerPort: 8080  # ✅ Port Spring Boot
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres:5432/products_db
+            - name: SPRING_DATASOURCE_USERNAME
+              value: user
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: password
+            - name: HAZELCAST_KUBERNETES_SERVICE_NAME
+              value: hazelcast-service
+            - name: SPRING_PROFILES_ACTIVE
+              value: OPENSHIFT
+          livenessProbe:
+            httpGet:
+              port: 8080
+              path: /
+            periodSeconds: 10
+            initialDelaySeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              port: 8080
+              path: /
+            periodSeconds: 10
+            initialDelaySeconds: 10
+            failureThreshold: 3
+
+---
+# ==========================
+# ✅ OpenShift Route (zamiast LoadBalancer)
+# 🔹 OpenShift nie obsługuje LoadBalancer, więc używamy Route
+# ==========================
+apiVersion: v1
+kind: Service
+metadata:
+  name: hazelcast-external
+  namespace: mateusz-dev
+spec:
+  selector:
+    app: hazelcast  # 🔄 Wybiera pod'y Hazelcast do load balancingu
+  ports:
+    - name: spring-boot
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP  # 🔄 OpenShift automatycznie load-balansuje ruch na pod'y
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: hazelcast-route
+  namespace: mateusz-dev
+  annotations:
+    haproxy.router.openshift.io/balance: roundrobin  # 🔄 Równomierne rozkładanie ruchu (bez sticky sessions)
+spec:
+  to:
+    kind: Service
+    name: hazelcast-external  # 🎯 Route kieruje ruch do usługi Hazelcast
+  port:
+    targetPort: 8080  # 📌 Obsługuje ruch na porcie 8080 (Spring Boot)
+  wildcardPolicy: None
