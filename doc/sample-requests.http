@@ -1,0 +1,92 @@
+### LOCAL Environment 8080/8081 for respective instances
+# Retrieves the list of products in local environment
+GET http://localhost:8080/products
+###
+# Retrieves a product by id in local environment
+GET http://localhost:8080/products/1
+###
+# Creates a new product in local environment
+POST http://localhost:8080/products
+Content-Type: application/json
+
+{
+  "name": "test",
+  "price": 20
+}
+###
+# Updates a new product in local environment
+PUT http://localhost:8080/products
+Content-Type: application/json
+
+{
+  "id": 1,
+  "name": "test",
+  "price": 30
+}
+###
+# Deletes a product in local environment
+DELETE http://localhost:8080/products/1
+###
+# Retrieves the cache of products in local environment
+GET http://localhost:8080/products/cache
+###
+# Clears the product cache in local environment
+DELETE http://localhost:8080/products/cache
+
+
+
+### DOCKER Environment
+# Retrieves the list of products in Docker environment
+GET http://localhost:80/products
+###
+# Creates a new product in Docker environment
+POST http://localhost:80/products
+Content-Type: application/json
+
+{"name": "test", "price": 20 }
+###
+# Retrieves the cached list of products in Docker environment
+GET http://localhost:80/products/cache
+###
+# Clears the product cache in Docker environment
+DELETE http://localhost:80/products/cache
+
+
+
+### MINIKUBE Environment
+# Retrieves the list of products in Kubernetes environment
+GET http://localhost:80/products
+###
+# Creates a new product in Kubernetes environment
+POST http://localhost:80/products
+Content-Type: application/json
+
+{ "name": "test", "price": 20 }
+###
+# Retrieves the cache products in Kubernetes environment
+GET http://localhost:80/products/cache
+###
+# Clears the product cache in Kubernetes environment
+DELETE http://localhost:80/products/cache
+
+
+
+### OPENSHIFT Environment
+# Retrieves the list of products in OpenShift environment
+GET http://hazelcast-route-mateusz-dev.apps.rm2.thpm.p1.openshiftapps.com/products
+Content-Type: application/json
+###
+# Creates a new product in OpenShift environment
+POST http://hazelcast-route-mateusz-dev.apps.rm2.thpm.p1.openshiftapps.com/products
+Content-Type: application/json
+
+{
+  "name": "test",
+  "price": 20
+}
+###
+# Retrieves the cache of products in OpenShift environment
+GET http://hazelcast-route-mateusz-dev.apps.rm2.thpm.p1.openshiftapps.com/products/cache
+###
+# Clears the product cache in OpenShift environment
+DELETE http://hazelcast-route-mateusz-dev.apps.rm2.thpm.p1.openshiftapps.com/products/cache

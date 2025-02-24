@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres-db
+    environment:
+      POSTGRES_DB: products_db
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    networks:
+      - hazelcast-net
+
+  hazelcast-app1:
+    build: ..
+    container_name: hazelcast-app1
+    environment:
+      SPRING_PROFILES_ACTIVE: DOCKER
+    depends_on:
+      - postgres
+    networks:
+      - hazelcast-net
+    ports:
+      - "8081:8080"
+      - "5701:5701"
+
+  hazelcast-app2:
+    build: ..
+    container_name: hazelcast-app2
+    environment:
+      SPRING_PROFILES_ACTIVE: DOCKER
+    depends_on:
+      - postgres
+    networks:
+      - hazelcast-net
+    ports:
+      - "8082:8080"
+      - "5702:5701"
+
+  nginx:
+    image: nginx:latest
+    container_name: nginx-lb
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - hazelcast-app1
+      - hazelcast-app2
+    networks:
+      - hazelcast-net
+
+networks:
+  hazelcast-net:
+    driver: bridge

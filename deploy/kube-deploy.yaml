@@ -1,0 +1,174 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hazelcast-role
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - services
+      - endpoints
+    verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hazelcast-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: hazelcast-role
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: default
+---
+# ==========================
+# ✅ Persistent Volume Claim dla PostgreSQL (zapewnia trwałość danych)
+# ==========================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# ==========================
+# ✅ PostgreSQL Service (Headless) - używane przez aplikację Spring Boot
+# ==========================
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: postgres
+  clusterIP: None  # 🔥 Headless service dla łatwego dostępu w Kubernetes
+---
+# ==========================
+# ✅ StatefulSet dla PostgreSQL
+# ==========================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: "postgres"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15  # ✅ Stabilna wersja PostgreSQL
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: user  # ✅ `spring.datasource.username`
+            - name: POSTGRES_PASSWORD
+              value: password  # ✅ `spring.datasource.password`
+            - name: POSTGRES_DB
+              value: products_db  # ✅ `spring.datasource.url`
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: postgres-storage
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+---
+# ==========================
+# ✅ Hazelcast Service (Headless) - Discovery w Kubernetes
+# ==========================
+apiVersion: v1
+kind: Service
+metadata:
+  name: hazelcast-service
+  labels:
+    app: hazelcast
+spec:
+  clusterIP: None  # 🔥 Headless Service wymagany dla Hazelcast Kubernetes Discovery
+  selector:
+    app: hazelcast  # ✅ Musi pasować do Deployment
+  ports:
+    - port: 5701
+      name: hazelcast
+---
+# ==========================
+# ✅ LoadBalancer dla aplikacji Spring Boot
+# ==========================
+apiVersion: v1
+kind: Service
+metadata:
+  name: hazelcast-poc-load-balancer
+spec:
+  selector:
+    app: hazelcast
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+  type: LoadBalancer
+---
+# ==========================
+# ✅ Deployment dla aplikacji Spring Boot (Spring Boot + Hazelcast)
+# ==========================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hazelcast-poc-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hazelcast
+  template:
+    metadata:
+      labels:
+        app: hazelcast
+    spec:
+      containers:
+        - name: hazelcast-poc-container
+          image: santandpoc/hazelcast-poc:1.6
+          ports:
+            - containerPort: 5701  # ✅ Port Hazelcast
+            - containerPort: 8080  # ✅ Port aplikacji Spring Boot
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres:5432/products_db  # ✅ Używa usługi PostgreSQL
+            - name: SPRING_DATASOURCE_USERNAME
+              value: user
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: password
+            - name: HAZELCAST_KUBERNETES_SERVICE_NAME
+              value: hazelcast-service  # ✅ Poprawne ustawienie zamiast `service-dns`
+            - name: SPRING_PROFILES_ACTIVE
+              value: KUBERNETES
+          livenessProbe:
+            httpGet:
+              port: 8080
+              path: /
+            periodSeconds: 10
+            initialDelaySeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              port: 8080
+              path: /
+            periodSeconds: 10
+            initialDelaySeconds: 10
+            failureThreshold: 3

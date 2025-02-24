@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: hazelcast-poc
+  datasource:
+    # 🔥 Używamy H2 w trybie FILE, aby wszystkie instancje miały dostęp do tej samej bazy
+    url: jdbc:h2:file:./data/products_db;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+  cache:
+    type: hazelcast
